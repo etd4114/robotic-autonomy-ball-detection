@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <arg name="args" default=""/>
+    <node name="detect_manager" pkg="robotic-autonomy-ball-detection" type="detection.py" output="screen" respawn="true">
+    </node>
+</launch>
