@@ -5,6 +5,7 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import rospy
+import copy
 
 class detect_manager:
     def __init__(self,):
@@ -26,14 +27,18 @@ class detect_manager:
         # Define the publisher to publish the detection results (image_raw).
         self.pub_viz_ = rospy.Publisher(
             self.published_image_topic, Image, queue_size=10)
+        self.depth = None
       
         rospy.spin()
         
     
     def processDepth(self, data):
-        depth = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
+        self.depth = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
     
     def detect(self, data):
+
+        current_depth = copy.deepcopy(self.depth)
+
         try:
             # Convert the msg (from 435i) to opencv bgr8 forrmat array.
             self.cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -42,12 +47,17 @@ class detect_manager:
         img = self.cv_image
 
 
+
+
+
         small_to_large_image_size_ratio =0.5
         img = cv2.resize(img, # original image
                        (0,0), # set fx and fy, not the final size
                        fx=small_to_large_image_size_ratio, 
                        fy=small_to_large_image_size_ratio, 
                        interpolation=cv2.INTER_NEAREST)
+
+        
 
 
         # Convert color space to HSV.
@@ -66,7 +76,11 @@ class detect_manager:
         # Draw circles that are detected.
         if detected_circles is not None:
             detected_circles = np.uint16(np.around(detected_circles))
-            print("Coordinates:" + str(detected_circles[0, 0, 0]) + "," + str(detected_circles[0, 0, 1]))    
+            row_cord = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
+            col_cord = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
+            print("Coordinates:" + str(col_cord) + "," + str(row_cord))
+            print("Depth:" + str(current_depth[int(col_cord),int(row_cord)]))
+    
 
 
         # ----FOR IMAGE VISUALIZATION---#
@@ -77,8 +91,8 @@ class detect_manager:
 
                 # Draw a small circle (of radius 1) to show the center.
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3)
-                pub_img = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
-                self.pub_viz_.publish(pub_img)
+                # pub_img = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
+                # self.pub_viz_.publish(pub_img)
                 # cv2.imshow("Detected Circle", img)
                 # cv2.waitKey(0)
                 
