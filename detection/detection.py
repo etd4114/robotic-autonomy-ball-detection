@@ -46,18 +46,12 @@ class detect_manager:
             print(e) 
         img = self.cv_image
 
-
-
-
-
         small_to_large_image_size_ratio =0.5
         img = cv2.resize(img, # original image
                        (0,0), # set fx and fy, not the final size
                        fx=small_to_large_image_size_ratio, 
                        fy=small_to_large_image_size_ratio, 
                        interpolation=cv2.INTER_NEAREST)
-
-        
 
 
         # Convert color space to HSV.
@@ -76,36 +70,37 @@ class detect_manager:
         # Draw circles that are detected.
         if detected_circles is not None:
             detected_circles = np.uint16(np.around(detected_circles))
-            row_cord = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
-            col_cord = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
-            print("Coordinates:" + str(col_cord) + "," + str(row_cord))
-            print("Depth:" + str(current_depth[int(col_cord),int(row_cord)]))
-    
+            x_val = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
+            y_val = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
+            print("Coordinates:" + str(y_val) + "," + str(x_val))
+            print("Depth:" + str(current_depth[int(y_val),int(x_val)]))
+            depth_val = current_depth[int(y_val),int(x_val)]
 
+            x_variance = 13.3333333
+            y_variance = 10.0
+            depth_variance = depth_val*0.02
+            #TODO: Create a new updated belief using the means (measurements) and these covariances:
+            #      These are arbitrarily picked for the x,y , but we can figure that out more next week
+            #      so we can get a model going before this is due lol.
+
+            # It will be a bit weird because the coordinate space our objec will be in is pixel,pixel,mm which is wrong
+            # but workable for this assignment I think
 
         # ----FOR IMAGE VISUALIZATION---#
             for pt in detected_circles[0, :]:
                 a, b, r = pt[0], pt[1], pt[2]
                 # Draw the circumference of the circle.
                 cv2.circle(img, (a, b), r, (0, 255, 0), 2)
-
                 # Draw a small circle (of radius 1) to show the center.
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3)
-                # pub_img = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
-                # self.pub_viz_.publish(pub_img)
-                # cv2.imshow("Detected Circle", img)
-                # cv2.waitKey(0)
+        else:
+            print("No Circles")
+            #TODO: Update the belief with a zero mean, MASSIVE covariance measurement to signal that the 
+            # ball is not in sight at all, ie x,y,z=0 x,y,z-cov = (inf/really big) 
                 
         # Convert image to msg for publishing.
         img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
         self.pub_viz_.publish(img)
-     
-        # else:
-        #     print("No Circles")
-    
-
-    
-    
     
 if __name__ == '__main__':
     rospy.init_node("detection ball")
