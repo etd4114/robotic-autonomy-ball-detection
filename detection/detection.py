@@ -40,18 +40,28 @@ class detect_manager:
         except CvBridgeError as e:
             print(e) 
         img = self.cv_image
+
+
+        small_to_large_image_size_ratio =0.5
+        img = cv2.resize(img, # original image
+                       (0,0), # set fx and fy, not the final size
+                       fx=small_to_large_image_size_ratio, 
+                       fy=small_to_large_image_size_ratio, 
+                       interpolation=cv2.INTER_NEAREST)
+
+
         # Convert color space to HSV.
         hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         # Define the low and high range for the detection of ball.
-        low_orange = np.array([12,50,50])
-        high_orange = np.array([15,255,255])
+        low_orange = np.array([10,140,20])
+        high_orange = np.array([25,255,255])
         # The pixel lower than the low_orange or larger than the high_orange will be set to 0.
         orange_mask = cv2.inRange(hsv_frame, low_orange, high_orange)
         orange = cv2.bitwise_and(img,img,mask=orange_mask)
         # Get gray image of the detected ball.
         gray = cv2.cvtColor(orange, cv2.COLOR_BGR2GRAY)
         # get the circles of the detected ball.
-        detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT,2, 300)
+        detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT,3, 300, 75, 45)
         
         # Draw circles that are detected.
         if detected_circles is not None:
@@ -72,12 +82,12 @@ class detect_manager:
                 # cv2.imshow("Detected Circle", img)
                 # cv2.waitKey(0)
                 
-                # Convert image to msg for publishing.
-                img = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
-                self.pub_viz_.publish(img)
+        # Convert image to msg for publishing.
+        img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
+        self.pub_viz_.publish(img)
      
-        else:
-            print("No Circles")
+        # else:
+        #     print("No Circles")
     
 
     
