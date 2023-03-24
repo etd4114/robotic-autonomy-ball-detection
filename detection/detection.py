@@ -8,7 +8,7 @@ from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge, CvBridgeError
 import rospy
-import copy
+import copy, time
 
 class detect_manager:
     def __init__(self,):
@@ -67,6 +67,7 @@ class detect_manager:
         self.depth = self.bridge.imgmsg_to_cv2(
             data, desired_encoding="passthrough")
 
+
     def detect(self, data):
         self.seq += 1
 
@@ -99,20 +100,37 @@ class detect_manager:
         # get the circles of the detected ball.
         detected_circles = cv2.HoughCircles(
             gray, cv2.HOUGH_GRADIENT, 3, 300, 75, 45)
-
+        
         # Draw circles that are detected.
         if detected_circles is not None:
             detected_circles = np.uint16(np.around(detected_circles))
             x_val = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
             y_val = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
-            print("Coordinates:" + str(y_val) + "," + str(x_val))
-            print("Depth:" + str(current_depth[int(y_val), int(x_val)]))
             depth_val = current_depth[int(y_val), int(x_val)]
 
-            r_val, c_val = x_val, y_val
-            theta_x = abs(c_val-320) * 74 // 320
-            theta_y = abs(r_val-240) * 62 // 240
-            print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(c_val-320, r_val-240, depth_val, theta_x, theta_y))
+            if depth_val < 175: ## minimum detectable region according to the manual
+                print("No Circles (Invalid depth: {})".format(depth_val))
+                img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
+                self.pub_viz_.publish(img)
+                return
+
+            print("Coordinates:" + str(y_val) + "," + str(x_val))
+            print("Depth:" + str(current_depth[int(y_val), int(x_val)]))
+            
+
+            ## Calculate the angle from the pixel
+            ## Use the center of the picture as the origin of the coordinate
+            w_val, h_val = x_val, y_val
+            x_fixed, y_fixed = (w_val-320), (240-h_val)
+            theta_x = x_fixed * 74 // 320
+            theta_y = y_fixed * 62 // 240
+            print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
+
+            ## var_thetax: should be small (< 5 degree)
+            ## var_depth: should be large (d * 0.02) --> 1m: variance = 20mm
+            ## 2D version: var_thetax, var_depth, transfrom covariance matrix from polar space to cartesian space
+            ## 3D version: var_thetax, var_thetay, var_depth, ...
+
 
             x_variance = 13.3333333
             y_variance = 10.0
