@@ -109,6 +109,11 @@ class detect_manager:
             print("Depth:" + str(current_depth[int(y_val), int(x_val)]))
             depth_val = current_depth[int(y_val), int(x_val)]
 
+            r_val, c_val = x_val, y_val
+            theta_x = abs(c_val-320) * 74 // 320
+            theta_y = abs(r_val-240) * 62 // 240
+            print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(c_val-320, r_val-240, depth_val, theta_x, theta_y))
+
             x_variance = 13.3333333
             y_variance = 10.0
             depth_variance = depth_val*0.02
