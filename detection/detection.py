@@ -7,7 +7,7 @@ from geometry_msgs.msg import PoseWithCovariance, Point, Pose, PoseWithCovarianc
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge, CvBridgeError
-import rospy
+import rospy, math
 import copy, time
 
 class detect_manager:
@@ -36,14 +36,14 @@ class detect_manager:
             self.published_ball_visualize_topic, Marker, queue_size=10)
         self.depth = None
         self.seq = 0
-        self.frame_id = "/pose_frame"
+        self.frame_id = "/camera_frame"
         self.init_Marker()
         rospy.spin()
 
     def init_Marker(self):
         self.ball = Marker()
 
-        self.ball.header.frame_id = "/my_frame_ball"
+        self.ball.header.frame_id = self.frame_id
         self.ball.header.stamp = rospy.Time.now()
         self.ball.ns = "basic_shapes"
         self.ball.id = self.seq
@@ -103,49 +103,63 @@ class detect_manager:
         
         # Draw circles that are detected.
         if detected_circles is not None:
+
+            depth_scaling_factor = 100.0
+
             detected_circles = np.uint16(np.around(detected_circles))
             x_val = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
             y_val = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
-            depth_val = current_depth[int(y_val), int(x_val)]
+            depth_val = current_depth[int(y_val), int(x_val)]/depth_scaling_factor
 
-            if depth_val < 175: ## minimum detectable region according to the manual
+            if depth_val < 175/depth_scaling_factor: ## minimum detectable region according to the manual
                 print("No Circles (Invalid depth: {})".format(depth_val))
                 img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
                 self.pub_viz_.publish(img)
                 return
 
-            print("Coordinates:" + str(y_val) + "," + str(x_val))
-            print("Depth:" + str(current_depth[int(y_val), int(x_val)]))
-            
-
             ## Calculate the angle from the pixel
             ## Use the center of the picture as the origin of the coordinate
             w_val, h_val = x_val, y_val
             x_fixed, y_fixed = (w_val-320), (240-h_val)
-            theta_x = x_fixed * 74 // 320
-            theta_y = y_fixed * 62 // 240
-            print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
-
+            theta_x = x_fixed * 74 // 640
+            theta_y = y_fixed * 62 // 480
+            # print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
+            x_coordinate, y_coordinate = depth_val*math.sin(math.radians(theta_x)),depth_val*math.cos(math.radians(theta_x))
+            print("x,y = {},{}, D: {}, THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
             ## var_thetax: should be small (< 5 degree)
             ## var_depth: should be large (d * 0.02) --> 1m: variance = 20mm
             ## 2D version: var_thetax, var_depth, transfrom covariance matrix from polar space to cartesian space
             ## 3D version: var_thetax, var_thetay, var_depth, ...
 
+            ## Covariance matrix setting up:
+            ## For the depth sensor we can estimate a variance of about (2% of d)^2
+            ## For the camera angle we can estimate a variance of about 1.5 degrees
+            ## So with that we can setup our matrix as follows:
+            ##
+            ##  [((0.02*d)^2)sin(radians(1.5))         0]
+            ##  [0         ((0.02*d)^2)cos(radians(1.5))]
+            ##
 
-            x_variance = 13.3333333
-            y_variance = 10.0
-            depth_variance = depth_val*0.02
-            # TODO: Create a new updated belief using the means (measurements) and these covariances:
-            #      These are arbitrarily picked for the x,y , but we can figure that out more next week
-            #      so we can get a model going before this is due lol.
+            ## The way that the covariance matrix is setup within the message is that it is a 36 length array
+            ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
+            ## I'll just put the whole matrix here:
+            
+            x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5))
+            y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5))
 
-            # It will be a bit weird because the coordinate space our objec will be in is pixel,pixel,mm which is wrong
-            # but workable for this assignment I think
+            covariance = [x_cov,  0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,   y_cov,   0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0]
+
+            
             pose = Pose(
                 position=Point(
-                    x=x_val / 100,
-                    y=y_val / 100,
-                    z=depth_val / 500
+                    x= x_coordinate,
+                    y= y_coordinate,
+                    z= 0
                 )
             )
 
@@ -156,7 +170,8 @@ class detect_manager:
                     frame_id=self.frame_id
                 ),
                 PoseWithCovariance(
-                    pose=pose
+                    pose=pose,
+                    covariance=covariance
                 )
             )
             self.pub_pose_covariance.publish(pose_stamped)
@@ -172,8 +187,6 @@ class detect_manager:
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3)
         else:
             print("No Circles")
-            # TODO: Update the belief with a zero mean, MASSIVE covariance measurement to signal that the
-            # ball is not in sight at all, ie x,y,z=0 x,y,z-cov = (inf/really big)
 
         # Convert image to msg for publishing.
         img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
