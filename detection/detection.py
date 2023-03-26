@@ -136,7 +136,7 @@ class detect_manager:
             ## For the camera angle we can estimate a variance of about 1.5 degrees
             ## So with that we can setup our matrix as follows:
             ##
-            ##  [((0.02*d)^2)sin(radians(1.5))         0]
+            ##  [((0.02*d)^2)sin(radians(theta))         0]
             ##  [0         ((0.02*d)^2)cos(radians(1.5))]
             ##
 
@@ -144,8 +144,8 @@ class detect_manager:
             ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
             ## I'll just put the whole matrix here:
             
-            x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5))
-            y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5))
+            x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5)**2)
+            y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5)**2)
 
             covariance = [x_cov,  0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,   y_cov,   0.0,    0.0,    0.0,    0.0,
