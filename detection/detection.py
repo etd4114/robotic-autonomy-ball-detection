@@ -75,22 +75,6 @@ class detect_manager:
         self.depth = self.bridge.imgmsg_to_cv2(
             data, desired_encoding="passthrough")
 
-        ## Smooth the depth data
-        fsize = 10
-        filter_avg = np.ones((fsize, fsize))
-        depth_valid = np.where(self.depth > 0, 1, 0)    ## depth bigger than zero
-
-        #r1, r2, c1, c2 = 245, 255, 315, 325
-        #print('Before smooth: \n', self.depth[r1:r2, c1:c2])
-
-        self.depth = signal.convolve2d(self.depth, filter_avg, boundary='symm', mode='same')
-        depth_valid = signal.convolve2d(depth_valid, filter_avg, boundary='symm', mode='same')
-        self.depth = (self.depth // depth_valid).astype(np.uint16)
-
-        ##print('After smooth: \n', self.depth[r1:r2, c1:c2])
-
-
-
     def detect(self, data):
         self.seq += 1
 
@@ -127,18 +111,41 @@ class detect_manager:
         # Draw circles that are detected.
         if detected_circles is not None:
 
-            depth_scaling_factor = 100.0
-
             detected_circles = np.uint16(np.around(detected_circles))
             x_val = detected_circles[0, 0, 0]*1/small_to_large_image_size_ratio
             y_val = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
-            depth_val = current_depth[int(y_val), int(x_val)]/depth_scaling_factor
+            depth_val = current_depth[int(y_val), int(x_val)]
 
-            if depth_val < 175/depth_scaling_factor: ## minimum detectable region according to the manual
+            # ## Spatial smooth   (average filter with valid (>0) data)
+            # fsize = 5
+            # w = fsize // 2
+            # r1, r2, c1, c2 = max(int(y_val)-w, 0), min(int(y_val)+w+1, 479), max(int(x_val)-w, 0), min(int(x_val)+w+1, 639)
+            # #print(current_depth[r1:r2, c1:c2])
+            # depth_boxsum = np.sum(current_depth[r1:r2, c1:c2])
+            # depth_validcnt = np.count_nonzero(current_depth[r1:r2, c1:c2])
+            # depth_val = depth_boxsum // max(depth_validcnt, 1)
+            # ## ===== ##
+
+            ## Temporal Smooth of depth value
+            if depth_val == 0:  ## Bad pixel, use temporal data
+                depth_val = np.average(np.array(self.ball_depth_queue))
+            else:   ## Put new data in the queue
+                if len(self.ball_depth_queue) == self.ball_depth_qsize:
+                    self.ball_depth_queue = self.ball_depth_queue[1:]
+                self.ball_depth_queue.append(depth_val)
+            depth_val = np.average(np.array(self.ball_depth_queue))
+            depth_val = int(depth_val)
+            #print(self.ball_depth_queue, 'depth_val:', depth_val)
+            ## ===== ##
+
+            if depth_val < 175: ## minimum detectable region according to the manual
                 print("No Circles (Invalid depth: {})".format(depth_val))
                 img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
                 self.pub_viz_.publish(img)
                 return
+            
+            depth_scaling_factor = 100.0
+            depth_val /= depth_scaling_factor
 
             ## Calculate the angle from the pixel
             ## Use the center of the picture as the origin of the coordinate
@@ -149,10 +156,6 @@ class detect_manager:
             # print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
             x_coordinate, y_coordinate = depth_val*math.sin(math.radians(theta_x)),depth_val*math.cos(math.radians(theta_x))
             print("x,y = {},{}, D: {}, THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
-            ## var_thetax: should be small (< 5 degree)
-            ## var_depth: should be large (d * 0.02) --> 1m: variance = 20mm
-            ## 2D version: var_thetax, var_depth, transfrom covariance matrix from polar space to cartesian space
-            ## 3D version: var_thetax, var_thetay, var_depth, ...
 
             ## Covariance matrix setting up:
             ## For the depth sensor we can estimate a variance of about (2% of d)^2
