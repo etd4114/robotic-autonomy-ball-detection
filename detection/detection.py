@@ -10,6 +10,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import rospy, math
 import copy, time
 
+from scipy import signal
+
 class detect_manager:
     def __init__(self,):
         # The topic published by Intel435i camera.
@@ -37,6 +39,12 @@ class detect_manager:
         self.depth = None
         self.seq = 0
         self.frame_id = "/camera_frame"
+
+        ## temporal smooth for ball detection
+        self.ball_depth_qsize = 10
+        self.ball_depth_queue = []
+
+
         self.init_Marker()
         rospy.spin()
 
@@ -66,6 +74,21 @@ class detect_manager:
     def processDepth(self, data):
         self.depth = self.bridge.imgmsg_to_cv2(
             data, desired_encoding="passthrough")
+
+        ## Smooth the depth data
+        fsize = 10
+        filter_avg = np.ones((fsize, fsize))
+        depth_valid = np.where(self.depth > 0, 1, 0)    ## depth bigger than zero
+
+        #r1, r2, c1, c2 = 245, 255, 315, 325
+        #print('Before smooth: \n', self.depth[r1:r2, c1:c2])
+
+        self.depth = signal.convolve2d(self.depth, filter_avg, boundary='symm', mode='same')
+        depth_valid = signal.convolve2d(depth_valid, filter_avg, boundary='symm', mode='same')
+        self.depth = (self.depth // depth_valid).astype(np.uint16)
+
+        ##print('After smooth: \n', self.depth[r1:r2, c1:c2])
+
 
 
     def detect(self, data):
