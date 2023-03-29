@@ -166,6 +166,7 @@ class detect_manager:
             ## ===== ##
 
             if depth_val < 175: ## minimum detectable region according to the manual
+                print("No Circles (Invalid depth: {})".format(depth_val))
                 img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
                 self.pub_viz_.publish(img)
                 return
@@ -184,7 +185,7 @@ class detect_manager:
             # print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
             x_coordinate, y_coordinate = depth_val*math.sin(math.radians(theta_x)),depth_val*math.cos(math.radians(theta_x))
             #print("x,y = {},{}, D: {}(cm), THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
-            # print("x,y = {},{}, D: {}(cm), THETA: {}".format(int(x_coordinate*10), int(y_coordinate)*10, int(depth_val*10), theta_x))
+            print("x,y = {},{}, D: {}(cm), THETA: {}".format(int(x_coordinate*10), int(y_coordinate)*10, int(depth_val*10), theta_x))
 
             ## Covariance matrix setting up:
             ## For the depth sensor we can estimate a variance of about (2% of d)^2
@@ -247,8 +248,8 @@ class detect_manager:
                 cv2.circle(img, (a, b), r, (0, 255, 0), 2)
                 # Draw a small circle (of radius 1) to show the center.
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3)
-        # else:
-        #     # print("No Circles")
+        else:
+            print("No Circles")
 
         # Convert image to msg for publishing.
         img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
