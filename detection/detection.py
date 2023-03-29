@@ -195,15 +195,19 @@ class detect_manager:
             ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
             ## I'll just put the whole matrix here:
             
-            # x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5)**2)
-            # y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5)**2)
             r_cov = 0.2*depth_val
             t_cov = math.radians(1.5)
-            y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
-            x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
+            # y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
+            # x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
 
-            covariance = [x_cov,  0.0,    0.0,    0.0,    0.0,    0.0,
-                          0.0,   y_cov,   0.0,    0.0,    0.0,    0.0,
+            theta = math.radians(theta_x)
+
+            R = np.array([[math.sin(theta), depth_val*math.cos(theta)], [math.cos(theta), -depth_val*math.sin(theta)]])
+            Pol = np.array([[r_cov*r_cov, 0], [0, t_cov*t_cov]])
+            cov_mat = np.matmul(np.matmul(R,Pol), R.T)
+
+            covariance = [cov_mat[0,0],  cov_mat[0,1],    0.0,    0.0,    0.0,    0.0,
+                          cov_mat[1,0],   cov_mat[1,1],   0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
