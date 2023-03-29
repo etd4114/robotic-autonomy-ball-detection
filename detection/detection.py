@@ -34,7 +34,7 @@ class detect_manager:
         self.pub_viz_ = rospy.Publisher(
             self.published_image_topic, Image, queue_size=10)
         self.pub_pose_covariance = rospy.Publisher(
-            self.published_pose_covariance_topic, PoseWithCovariance, queue_size=10)
+            self.published_pose_covariance_topic, PoseWithCovarianceStamped, queue_size=10)
         self.pub_visualize_ball = rospy.Publisher(
             self.published_ball_visualize_topic, Marker, queue_size=10)
         self.depth = None
@@ -138,6 +138,9 @@ class detect_manager:
             y_val = detected_circles[0, 0, 1]*1/small_to_large_image_size_ratio
             depth_val = current_depth[int(y_val), int(x_val)]
 
+            depth_adjust = 250
+            depth_val = depth_val - depth_adjust
+
             # ## Spatial smooth   (average filter with valid (>0) data)
             # fsize = 5
             # w = fsize // 2
@@ -171,6 +174,8 @@ class detect_manager:
             depth_scaling_factor = 100.0
             depth_val /= depth_scaling_factor
 
+            print(depth_val*10)
+
             ## Calculate the angle from the pixel
             ## Use the center of the picture as the origin of the coordinate
             w_val, h_val = x_val, y_val
@@ -195,7 +200,8 @@ class detect_manager:
             ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
             ## I'll just put the whole matrix here:
             
-            r_cov = 0.2*depth_val
+            #measured error for the depth sensor was about 0.05025 * distance
+            r_cov = 0.5025*depth_val
             t_cov = math.radians(1.5)
             # y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
             # x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
@@ -221,11 +227,17 @@ class detect_manager:
                 )
             )
 
-            pose_with_cov = PoseWithCovariance(
+            pose_stamped = PoseWithCovarianceStamped(
+                Header(
+                    seq=self.seq,
+                    stamp=rospy.Time.now(),
+                    frame_id=self.frame_id
+                ),
+                PoseWithCovariance(
                     pose=pose,
                     covariance=covariance
-                )
-            self.pub_pose_covariance.publish(pose_with_cov)
+                ))
+            self.pub_pose_covariance.publish(pose_stamped)
             self.ball.pose = pose
             self.pub_visualize_ball.publish(self.ball)
 
