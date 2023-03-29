@@ -139,7 +139,7 @@ class detect_manager:
             depth_val = current_depth[int(y_val), int(x_val)]
 
             depth_adjust = 250
-            depth_val = depth_val - depth_adjust
+            depth_val = max(0, depth_val - depth_adjust)
 
             # ## Spatial smooth   (average filter with valid (>0) data)
             # fsize = 5
@@ -174,7 +174,6 @@ class detect_manager:
             depth_scaling_factor = 100.0
             depth_val /= depth_scaling_factor
 
-            print(depth_val*10)
 
             ## Calculate the angle from the pixel
             ## Use the center of the picture as the origin of the coordinate
@@ -201,8 +200,8 @@ class detect_manager:
             ## I'll just put the whole matrix here:
             
             #measured error for the depth sensor was about 0.05025 * distance
-            r_cov = 0.5025*depth_val
-            t_cov = math.radians(1.5)
+            r_cov = 0.0525*depth_val
+            t_cov = math.radians(.55)
             # y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
             # x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
 
