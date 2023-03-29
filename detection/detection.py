@@ -130,6 +130,8 @@ class detect_manager:
             if depth_val == 0:  ## Bad pixel, use temporal data
                 depth_val = np.average(np.array(self.ball_depth_queue))
             else:   ## Put new data in the queue
+                if len(self.ball_depth_queue) > 0 and depth_val > self.ball_depth_queue[-1] * 1.2:   ## In case the depth difference between 2 frame is too big
+                    depth_val = self.ball_depth_queue[-1] * 1.2
                 if len(self.ball_depth_queue) == self.ball_depth_qsize:
                     self.ball_depth_queue = self.ball_depth_queue[1:]
                 self.ball_depth_queue.append(depth_val)
@@ -155,7 +157,8 @@ class detect_manager:
             theta_y = y_fixed * 62 // 480
             # print("(x y z): ({} {} {}) || (ThetaX ThetaY): ({} {})".format(x_fixed, y_fixed, depth_val, theta_x, theta_y))
             x_coordinate, y_coordinate = depth_val*math.sin(math.radians(theta_x)),depth_val*math.cos(math.radians(theta_x))
-            print("x,y = {},{}, D: {}, THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
+            #print("x,y = {},{}, D: {}(cm), THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
+            print("x,y = {},{}, D: {}(cm), THETA: {}".format(int(x_coordinate*10), int(y_coordinate)*10, int(depth_val*10), theta_x))
 
             ## Covariance matrix setting up:
             ## For the depth sensor we can estimate a variance of about (2% of d)^2
