@@ -11,6 +11,7 @@ import rospy, math
 import copy, time
 
 from scipy import signal
+import imutils
 
 class detect_manager:
     def __init__(self,):
@@ -41,6 +42,7 @@ class detect_manager:
         self.frame_id = "/camera_frame"
 
         ## temporal smooth for ball detection
+        self.ball_detect_mode = 'Contour'   # 'Hough
         self.ball_depth_qsize = 10
         self.ball_depth_queue = []
 
@@ -105,8 +107,28 @@ class detect_manager:
         # Get gray image of the detected ball.
         gray = cv2.cvtColor(orange, cv2.COLOR_BGR2GRAY)
         # get the circles of the detected ball.
-        detected_circles = cv2.HoughCircles(
-            gray, cv2.HOUGH_GRADIENT, 3, 300, 75, 45)
+
+        detected_circles = None
+        if self.ball_detect_mode == 'Hough':
+            detected_circles = cv2.HoughCircles(
+                gray, cv2.HOUGH_GRADIENT, 3, 300, 75, 45)
+        else:
+            orange_mask = cv2.erode(orange_mask, None, iterations=2)
+            orange_mask = cv2.dilate(orange_mask, None, iterations=2)
+            cnts = cv2.findContours(orange_mask.copy(), cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE)
+            cnts = imutils.grab_contours(cnts)
+            center = None
+
+            # only proceed if at least one contour was found
+            if len(cnts) > 0:
+                # find the largest contour in the mask, then use
+                # it to compute the minimum enclosing circle and
+                # centroid
+                c = max(cnts, key=cv2.contourArea)
+                ((x, y), radius) = cv2.minEnclosingCircle(c)
+                if radius > 10:
+                    detected_circles = [[[x, y, radius]]]
         
         # Draw circles that are detected.
         if detected_circles is not None:
@@ -173,8 +195,12 @@ class detect_manager:
             ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
             ## I'll just put the whole matrix here:
             
-            x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5)**2)
-            y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5)**2)
+            # x_cov = ((0.02*depth_val)**2)*math.sin(math.radians(1.5)**2)
+            # y_cov = ((0.02*depth_val)**2)*math.cos(math.radians(1.5)**2)
+            r_cov = 0.2*depth_val
+            t_cov = math.radians(1.5)
+            y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
+            x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
 
             covariance = [x_cov,  0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,   y_cov,   0.0,    0.0,    0.0,    0.0,
@@ -182,7 +208,6 @@ class detect_manager:
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0]
-
             
             pose = Pose(
                 position=Point(
