@@ -34,7 +34,7 @@ class detect_manager:
         self.pub_viz_ = rospy.Publisher(
             self.published_image_topic, Image, queue_size=10)
         self.pub_pose_covariance = rospy.Publisher(
-            self.published_pose_covariance_topic, PoseWithCovarianceStamped, queue_size=10)
+            self.published_pose_covariance_topic, PoseWithCovariance, queue_size=10)
         self.pub_visualize_ball = rospy.Publisher(
             self.published_ball_visualize_topic, Marker, queue_size=10)
         self.depth = None
@@ -217,18 +217,11 @@ class detect_manager:
                 )
             )
 
-            pose_stamped = PoseWithCovarianceStamped(
-                Header(
-                    seq=self.seq,
-                    stamp=rospy.Time.now(),
-                    frame_id=self.frame_id
-                ),
-                PoseWithCovariance(
+            pose_with_cov = PoseWithCovariance(
                     pose=pose,
                     covariance=covariance
                 )
-            )
-            self.pub_pose_covariance.publish(pose_stamped)
+            self.pub_pose_covariance.publish(pose_with_cov)
             self.ball.pose = pose
             self.pub_visualize_ball.publish(self.ball)
 
