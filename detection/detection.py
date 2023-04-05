@@ -3,7 +3,7 @@
 import numpy as np
 import cv2
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseWithCovariance, Point, Pose, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovariance, Point, Pose, PoseWithCovarianceStamped, Quaternion
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge, CvBridgeError
@@ -12,6 +12,8 @@ import copy, time
 
 from scipy import signal
 import imutils
+
+from utils import quaternion2euler, euler2quaternion
 
 class detect_manager:
     def __init__(self,):
@@ -161,7 +163,10 @@ class detect_manager:
                     self.ball_depth_queue = self.ball_depth_queue[1:]
                 self.ball_depth_queue.append(depth_val)
             depth_val = np.average(np.array(self.ball_depth_queue))
-            depth_val = int(depth_val)
+            try:
+                depth_val = int(depth_val)
+            except:
+                depth_val = 0
             #print(self.ball_depth_queue, 'depth_val:', depth_val)
             ## ===== ##
 
@@ -218,11 +223,19 @@ class detect_manager:
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
                           0.0,    0.0,    0.0,    0.0,    0.0,    0.0]
             
+            quat = euler2quaternion([0,theta_x,0])
+            
             pose = Pose(
                 position=Point(
                     x= x_coordinate,
                     y= y_coordinate,
                     z= 0
+                ),
+                orientation = Quaternion(
+                    x=quat[0],
+                    y=quat[1],
+                    z=quat[2],
+                    w=quat[3]
                 )
             )
 
