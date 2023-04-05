@@ -143,15 +143,6 @@ class detect_manager:
             depth_adjust = 250
             depth_val = max(0, depth_val - depth_adjust)
 
-            # ## Spatial smooth   (average filter with valid (>0) data)
-            # fsize = 5
-            # w = fsize // 2
-            # r1, r2, c1, c2 = max(int(y_val)-w, 0), min(int(y_val)+w+1, 479), max(int(x_val)-w, 0), min(int(x_val)+w+1, 639)
-            # #print(current_depth[r1:r2, c1:c2])
-            # depth_boxsum = np.sum(current_depth[r1:r2, c1:c2])
-            # depth_validcnt = np.count_nonzero(current_depth[r1:r2, c1:c2])
-            # depth_val = depth_boxsum // max(depth_validcnt, 1)
-            # ## ===== ##
 
             ## Temporal Smooth of depth value
             if depth_val == 0:  ## Bad pixel, use temporal data
@@ -167,8 +158,6 @@ class detect_manager:
                 depth_val = int(depth_val)
             except:
                 depth_val = 0
-            #print(self.ball_depth_queue, 'depth_val:', depth_val)
-            ## ===== ##
 
             if depth_val < 175: ## minimum detectable region according to the manual
                 print("No Circles (Invalid depth: {})".format(depth_val))
@@ -191,25 +180,8 @@ class detect_manager:
             #print("x,y = {},{}, D: {}(cm), THETA: {}".format(x_coordinate, y_coordinate, depth_val, theta_x))
             print("x,y = {},{}, D: {}(cm), THETA: {}".format(int(x_coordinate*10), int(y_coordinate)*10, int(depth_val*10), theta_x))
 
-            ## Covariance matrix setting up:
-            ## For the depth sensor we can estimate a variance of about (2% of d)^2
-            ## For the camera angle we can estimate a variance of about 1.5 degrees
-            ## So with that we can setup our matrix as follows:
-            ##
-            ##  [((0.02*d)^2)sin(radians(theta))         0]
-            ##  [0         ((0.02*d)^2)cos(radians(1.5))]
-            ##
-
-            ## The way that the covariance matrix is setup within the message is that it is a 36 length array
-            ## where the diagonal are the variances so index 0 is variance of x and index 7 is variance of y and so on...
-            ## I'll just put the whole matrix here:
-            
-            #measured error for the depth sensor was about 0.05025 * distance
             r_cov = 0.0525*depth_val
             t_cov = math.radians(.55)
-            # y_cov = r_cov * r_cov * math.cos(t_cov) * math.cos(t_cov)
-            # x_cov = r_cov * r_cov * math.sin(t_cov) * math.sin(t_cov)
-
             theta = math.radians(theta_x)
 
             R = np.array([[math.sin(theta), depth_val*math.cos(theta)], [math.cos(theta), -depth_val*math.sin(theta)]])
@@ -249,6 +221,7 @@ class detect_manager:
                     pose=pose,
                     covariance=covariance
                 ))
+
             self.pub_pose_covariance.publish(pose_stamped)
             self.ball.pose = pose
             self.pub_visualize_ball.publish(self.ball)
@@ -261,7 +234,39 @@ class detect_manager:
                 # Draw a small circle (of radius 1) to show the center.
                 cv2.circle(img, (a, b), 1, (0, 0, 255), 3)
         else:
-            print("No Circles")
+            covariance = [100,  0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,   100,   0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                          0.0,    0.0,    0.0,    0.0,    0.0,    0.0]
+                        
+            pose = Pose(
+                position=Point(
+                    x= -10000.0,
+                    y= -10000.0,
+                    z= 0
+                ),
+                orientation = Quaternion(
+                    x=0,
+                    y=0,
+                    z=0,
+                    w=1
+                )
+            )
+
+            pose_stamped = PoseWithCovarianceStamped(
+                Header(
+                    seq=self.seq,
+                    stamp=rospy.Time.now(),
+                    frame_id=self.frame_id
+                ),
+                PoseWithCovariance(
+                    pose=pose,
+                    covariance=covariance
+                ))
+
+            self.pub_pose_covariance.publish(pose_stamped)
 
         # Convert image to msg for publishing.
         img = self.bridge.cv2_to_imgmsg(img, encoding="passthrough")
