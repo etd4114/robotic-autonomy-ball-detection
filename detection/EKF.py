@@ -24,7 +24,9 @@ class EKF():
         self.measurement_pub_topic = "/pose_corrected"
         self.published_ball_visualize_topic = "/ball_visualize_corrected"
 
-        self.Q = np.array([[0.5, 0.0], [0.0, 0.5]])
+        self.Q = np.array([[2, 0.0], [0.0, 2]])
+        # self.Q = np.array([[0.5, 0.0, 0.0], [0.0, .5, 0.0], [0.0, 0.0, 0.5]])
+
         self.C = np.array([[1, 0, 0], [0, 1, 0]])
         self.Sx_k_k = np.array([[0.05, 0, 0], [0, 0.05, 0], [0, 0, 0.05]])
         self.Swkm = np.array([[1, 0], [0, 1]])
@@ -40,20 +42,24 @@ class EKF():
         self.frame_id = "/camera_frame"
         
     def measurement_cb(self, data):
-        self.receieved_pose_with_covariance = data
+        
         self.observation = np.array([data.pose.pose.position.x, data.pose.pose.position.y])
         self.Swkm = np.array([[data.pose.covariance[0], 0], [0, data.pose.covariance[7]]])
         if not self.initialized:
             self.X = np.array([data.pose.pose.position.x, data.pose.pose.position.y, 0.0])
             self.initialized = True
         if (self.observation[0] == -10000.0) and (self.observation[1] == -10000.0):
+            
             self.update(True)
         else:
+            self.receieved_pose_with_covariance = data
             self.update(False)
 
     def prediction(self, xkm, U, Sigma_km1_km1):
         A, B = self.getGrad(xkm,U)
         x_new = np.matmul(A,xkm) + np.matmul(B,U)
+        # x_new = np.matmul(A,xkm) + np.array([U[0], U[1], 0.01])
+
         sigma_u = np.matmul(B ,np.matmul(self.Q, B.T))
         SxkGkm = np.matmul(A, np.matmul(Sigma_km1_km1, A.T)) + sigma_u
         return x_new, SxkGkm
@@ -67,6 +73,7 @@ class EKF():
 
         X_predicted, Sx_k_km1 = self.prediction(self.X, self.U, self.Sx_k_k)                        
         X_corrected = X_predicted
+        self.Sx_k_k = Sx_k_km1
         if not propagate_without_correct:
             self.gainUpdate(Sx_k_km1)
             X_corrected, self.Sx_k_k = self.correction(X_predicted, Sx_k_km1, self.observation, self.KalGain)   
@@ -74,12 +81,18 @@ class EKF():
         print("X k-1: {}".format(self.X))
         print("X_predicted: {}".format(X_predicted))
         print("X_corrected: {}".format(X_corrected))
+        print("COVARIANCE:" + str(self.Sx_k_k))
 
         self.X = X_corrected
         self.X_corrected = np.reshape(X_corrected, [3, 1])
 
         self.receieved_pose_with_covariance.pose.pose.position.x = self.X[0]
         self.receieved_pose_with_covariance.pose.pose.position.y = self.X[1]
+        blank = .0001*np.identity(6).flatten()
+        blank[0:3] = self.Sx_k_k.flatten()[0:3]
+        blank[6:9] = self.Sx_k_k.flatten()[3:6]
+        blank[12:15] = self.Sx_k_k.flatten()[6:9]
+        self.receieved_pose_with_covariance.pose.covariance = blank.tolist()
         self.measurement_pub.publish(self.receieved_pose_with_covariance)
 
     def gainUpdate(self, Sx_k_km1):
@@ -118,7 +131,7 @@ if __name__ == '__main__':
     nk = 1       # <------<< Look ahead duration in seconds
     dt = 0.1       # <------<< Sampling duration of discrete model
     X = np.array([0.001, 0.001, 0.0])       # <------<< Initial State of the Ball
-    U = np.array([0.1, 0.1])       # <------<< Initial input to the motion model
+    U = np.array([0.01, 0.01])       # <------<< Initial input to the motion model
 
     filter = EKF(nk, dt, X, U)
     rate = rospy.Rate(1)
