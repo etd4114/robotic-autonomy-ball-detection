@@ -24,7 +24,7 @@ class EKF():
         self.measurement_pub_topic = "/pose_corrected"
         self.published_ball_visualize_topic = "/ball_visualize_corrected"
 
-        self.Q = np.array([[2, 0.0], [0.0, 2]])
+        self.Q = np.array([[1, 0.0], [0.0, 1]])
         # self.Q = np.array([[0.5, 0.0, 0.0], [0.0, .5, 0.0], [0.0, 0.0, 0.5]])
 
         self.C = np.array([[1, 0, 0], [0, 1, 0]])
